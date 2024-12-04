@@ -16,7 +16,8 @@ func main() {
 
 	// init dependencies
 	respParser := NewRESP()
-	processor := NewProcessor(respParser)
+	memory := NewMemory()
+	processor := NewProcessor(respParser, memory)
 
 	// Uncomment this block to pass the first stage
 	//
@@ -50,7 +51,7 @@ func handle(conn net.Conn, processor *Processor) {
 		}
 		output, err := processor.Accept(buf)
 		if err != nil {
-			fmt.Println("Invalid command -> ", err)
+			fmt.Println("Invalid command: ", err)
 			break
 		}
 		conn.Write(output)

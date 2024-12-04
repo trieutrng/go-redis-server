@@ -1,5 +1,9 @@
 package main
 
+import (
+	"strings"
+)
+
 func RespTypeString(respType RESPType) string {
 	switch respType {
 	case SimpleString:
@@ -10,4 +14,8 @@ func RespTypeString(respType RESPType) string {
 		return "Arrays"
 	}
 	return "Not found"
+}
+
+func ToLowerCase(input string) string {
+	return strings.ToLower(input)
 }

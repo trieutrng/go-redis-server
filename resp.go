@@ -53,12 +53,22 @@ func (resp *RespParser) serialize_string(input *RESP) []byte {
 }
 
 func (resp *RespParser) serialize_bulkString(input *RESP) []byte {
+	// null bulk string will be preresent as -1 in size
+	lenStr := len(input.Data)
+	if lenStr == 0 {
+		lenStr = -1
+	}
+
 	builder := make([]byte, 0)
 	builder = append(builder, byte(BulkString))
-	builder = append(builder, []byte(fmt.Sprintf("%v", len(input.Data)))...)
+	builder = append(builder, []byte(fmt.Sprintf("%v", lenStr))...)
 	builder = append(builder, CR, LF)
-	builder = append(builder, input.Data...)
-	builder = append(builder, CR, LF)
+
+	if len(input.Data) > 0 {
+		builder = append(builder, input.Data...)
+		builder = append(builder, CR, LF)
+	}
+
 	return builder
 }
 

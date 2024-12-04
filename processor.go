@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"time"
+)
 
 const (
 	Ping = "PING"
@@ -11,13 +15,15 @@ type Executor func(resp *RESP) (*RESP, error)
 
 type Processor struct {
 	parser    RespParser
+	memory    *Memory
 	executors map[string]Executor
 }
 
-func NewProcessor(respParser RespParser) *Processor {
+func NewProcessor(respParser RespParser, memory *Memory) *Processor {
 	return &Processor{
 		parser:    respParser,
-		executors: initExecutors(),
+		memory:    memory,
+		executors: initExecutors(memory),
 	}
 }
 
@@ -46,26 +52,87 @@ func (p *Processor) Accept(cmd []byte) ([]byte, error) {
 	return p.parser.Serialize(output), nil
 }
 
-func initExecutors() map[string]Executor {
+func initExecutors(memory *Memory) map[string]Executor {
 	return map[string]Executor{
-		"PING": ping,
-		"ECHO": echo,
+		"PING": ping(),
+		"ECHO": echo(),
+		"GET":  get(memory),
+		"SET":  set(memory),
 	}
 }
 
-func ping(resp *RESP) (*RESP, error) {
-	return &RESP{
-		Type: SimpleString,
-		Data: []byte("PONG"),
-	}, nil
+func ping() Executor {
+	return func(resp *RESP) (*RESP, error) {
+		return &RESP{
+			Type: SimpleString,
+			Data: []byte("PONG"),
+		}, nil
+	}
 }
 
-func echo(resp *RESP) (*RESP, error) {
-	if len(resp.Nested) < 2 {
-		return nil, fmt.Errorf("ECHO command error: input insufficient")
+func echo() Executor {
+	return func(resp *RESP) (*RESP, error) {
+		if len(resp.Nested) < 2 {
+			return nil, fmt.Errorf("ECHO command error: input insufficient")
+		}
+		return &RESP{
+			Type: BulkString,
+			Data: resp.Nested[1].Data,
+		}, nil
 	}
-	return &RESP{
-		Type: BulkString,
-		Data: resp.Nested[1].Data,
-	}, nil
+}
+
+func set(memory *Memory) Executor {
+	return func(resp *RESP) (*RESP, error) {
+		if len(resp.Nested) < 3 {
+			return nil, fmt.Errorf("insufficient arguments for SET")
+		}
+		argKey, argVal := resp.Nested[1], resp.Nested[2]
+		key, val := string(argKey.Data), string(argVal.Data)
+
+		// build SET options
+		opts := Option{}
+		i := 3
+		for i < len(resp.Nested) {
+			argOpt := resp.Nested[i]
+			opt := ToLowerCase(string(argOpt.Data))
+			switch opt {
+			case "px":
+				if i == len(resp.Nested)-1 {
+					return nil, fmt.Errorf("invalid PX argument - missing PX value")
+				}
+				argPXVal := string(resp.Nested[i+1].Data)
+				pxVal, err := strconv.Atoi(argPXVal)
+				if err != nil {
+					return nil, fmt.Errorf("invalid PX argument - invalid PX value: %v", err)
+				}
+				opts.expiry = time.Duration(pxVal) * time.Millisecond
+			}
+			i++
+		}
+
+		memory.Put(key, val, opts)
+
+		return &RESP{
+			Type: SimpleString,
+			Data: []byte("OK"),
+		}, nil
+	}
+}
+
+func get(memory *Memory) Executor {
+	return func(resp *RESP) (*RESP, error) {
+		if len(resp.Nested) < 2 {
+			return nil, fmt.Errorf("insufficient arguments for GET")
+		}
+		argKey := resp.Nested[1]
+		key := string(argKey.Data)
+
+		val := memory.Get(key)
+
+		return &RESP{
+			Type: BulkString,
+			Data: []byte(val),
+		}, nil
+	}
 }

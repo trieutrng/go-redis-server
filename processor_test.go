@@ -23,10 +23,21 @@ func TestProcessor_Accept(t *testing.T) {
 			args:     "*2\r\n$4\r\nECHO\r\n$12\r\nTRIEU TRUONG\r\n",
 			expected: "$12\r\nTRIEU TRUONG\r\n",
 		},
+		{
+			name:     "processor accept 4",
+			args:     "*5\r\n$3\r\nSET\r\n$5\r\nmango\r\n$5\r\napple\r\n$2\r\npx\r\n$3\r\n100\r\n",
+			expected: "+OK\r\n",
+		},
+		{
+			name:     "processor accept 5",
+			args:     "*2\r\n$3\r\nGET\r\n$3\r\nkey\r\n",
+			expected: "$-1\r\n",
+		},
 	}
 
 	respParser := NewRESP()
-	processor := NewProcessor(respParser)
+	memory := NewMemory()
+	processor := NewProcessor(respParser, memory)
 	for _, tt := range testcases {
 		output, err := processor.Accept([]byte(tt.args))
 		if err != nil {
