@@ -10,20 +10,50 @@ import (
 var _ = net.Listen
 var _ = os.Exit
 
+type serverOption struct {
+	port      string
+	replicaOf string
+}
+
+var ReplicationServerInfo redisReplicationInfo
+
+func getServerOptions(args []string) serverOption {
+	opts := serverOption{
+		port: "6379",
+	}
+	for i, arg := range args {
+		switch arg {
+		case "--port":
+			if i < len(args)-1 {
+				opts.port = args[i+1]
+			}
+		case "--replicaof":
+			opts.replicaOf = args[i+1]
+		}
+	}
+	return opts
+}
+
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
+	opts := getServerOptions(os.Args)
+
+	// Uncomment this block to pass the first stage
+	//
+	l, err := net.Listen("tcp", fmt.Sprintf(":%v", opts.port))
+	if err != nil {
+		fmt.Println("Failed to bind to port 6379")
+		os.Exit(1)
+	}
 
 	// init dependencies
 	respParser := NewRESP()
 	memory := NewMemory()
 	processor := NewProcessor(respParser, memory)
 
-	// Uncomment this block to pass the first stage
-	//
-	l, err := net.Listen("tcp", "0.0.0.0:6379")
+	// process replication
+	err = InitReplication(processor, opts)
 	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
+		fmt.Println("Error when replicating: ", err.Error())
 		os.Exit(1)
 	}
 

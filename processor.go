@@ -2,13 +2,9 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
-)
-
-const (
-	Ping = "PING"
-	Echo = "ECHO"
 )
 
 type Executor func(resp *RESP) (*RESP, error)
@@ -58,6 +54,7 @@ func initExecutors(memory *Memory) map[string]Executor {
 		"ECHO": echo(),
 		"GET":  get(memory),
 		"SET":  set(memory),
+		"INFO": info(),
 	}
 }
 
@@ -133,6 +130,23 @@ func get(memory *Memory) Executor {
 		return &RESP{
 			Type: BulkString,
 			Data: []byte(val),
+		}, nil
+	}
+}
+
+func info() Executor {
+	return func(resp *RESP) (*RESP, error) {
+		v := reflect.ValueOf(ReplicationServerInfo)
+		t := reflect.TypeOf(ReplicationServerInfo)
+		replInfo := ""
+		for i := 0; i < v.NumField(); i++ {
+			infoTag := v.Type().Field(i).Tag.Get("info")
+			fieldValue := v.FieldByName(t.Field(i).Name).Interface()
+			replInfo = replInfo + string(CR) + string(LF) + fmt.Sprintf("%v:%v", infoTag, fieldValue)
+		}
+		return &RESP{
+			Type: BulkString,
+			Data: []byte(replInfo),
 		}, nil
 	}
 }
