@@ -4,8 +4,15 @@ import (
 	"time"
 )
 
+type StreamEntry map[string]map[string]string
+
+type Entry struct {
+	Type  string
+	Value interface{}
+}
+
 type Memory struct {
-	store  map[string]string
+	store  map[string]Entry
 	expiry chan string
 }
 
@@ -15,7 +22,7 @@ type Option struct {
 
 func NewMemory() *Memory {
 	memory := &Memory{
-		store:  make(map[string]string),
+		store:  make(map[string]Entry),
 		expiry: make(chan string),
 	}
 
@@ -25,15 +32,15 @@ func NewMemory() *Memory {
 	return memory
 }
 
-func (m *Memory) Get(key string) string {
+func (m *Memory) Get(key string) *Entry {
 	val, ok := m.store[key]
 	if !ok {
-		return ""
+		return &Entry{"none", ""}
 	}
-	return val
+	return &val
 }
 
-func (m *Memory) Put(key, val string, opts Option) {
+func (m *Memory) Put(key string, val Entry, opts Option) {
 	m.store[key] = val
 
 	// TODO: need to move this to passive expiry + sweep actively

@@ -19,6 +19,8 @@ type redisReplicationInfo struct {
 	ReplBacklogHistlen         int    `info:"repl_backlog_histlen"`
 }
 
+var ReplicationServerInfo redisReplicationInfo
+
 func InitReplication(procesor *Processor, opts serverOption) error {
 	ReplicationServerInfo = redisReplicationInfo{
 		Role:                       "master",
@@ -99,7 +101,7 @@ func handshake(procesor *Processor, opts serverOption) error {
 	fmt.Printf("MASTER_RESPOND: %v", string(data))
 
 	// step 3: send REPLCONF with capa psync
-	// -> REPLCONF capa psync 2
+	// -> REPLCONF capa psync2
 	replConfPsync := &RESP{
 		Type: Arrays,
 		Nested: []*RESP{
@@ -121,6 +123,34 @@ func handshake(procesor *Processor, opts serverOption) error {
 	fmt.Printf("SLAVE_REQUEST: %v", string(replConfPsycnMsg))
 
 	data, err = request(conn, replConfPsycnMsg)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("MASTER_RESPOND: %v", string(data))
+
+	// step 4: send PSYNC
+	// -> PSYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb -1
+	psync := &RESP{
+		Type: Arrays,
+		Nested: []*RESP{
+			{
+				Type: BulkString,
+				Data: []byte("PSYNC"),
+			},
+			{
+				Type: BulkString,
+				Data: []byte("?"),
+			},
+			{
+				Type: BulkString,
+				Data: []byte("-1"),
+			},
+		},
+	}
+	psyncMsg := procesor.parser.Serialize(psync)
+	fmt.Printf("SLAVE_REQUEST: %v", string(psyncMsg))
+
+	data, err = request(conn, psyncMsg)
 	if err != nil {
 		return err
 	}

@@ -15,8 +15,6 @@ type serverOption struct {
 	replicaOf string
 }
 
-var ReplicationServerInfo redisReplicationInfo
-
 func getServerOptions(args []string) serverOption {
 	opts := serverOption{
 		port: "6379",

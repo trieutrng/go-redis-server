@@ -11,6 +11,7 @@ const CR = '\r'
 const LF = '\n'
 
 const (
+	SimpleError  RESPType = '-'
 	SimpleString RESPType = '+'
 	BulkString   RESPType = '$'
 	Arrays       RESPType = '*'
@@ -34,6 +35,8 @@ func NewRESP() RespParser {
 func (resp *RespParser) Serialize(input *RESP) []byte {
 	builder := make([]byte, 0)
 	switch input.Type {
+	case SimpleError:
+		builder = append(builder, resp.serialize_simple_error(input)...)
 	case SimpleString:
 		builder = append(builder, resp.serialize_string(input)...)
 	case BulkString:
@@ -41,6 +44,14 @@ func (resp *RespParser) Serialize(input *RESP) []byte {
 	case Arrays:
 		builder = append(builder, resp.serialize_arrays(input)...)
 	}
+	return builder
+}
+
+func (resp *RespParser) serialize_simple_error(input *RESP) []byte {
+	builder := make([]byte, 0)
+	builder = append(builder, byte(SimpleError))
+	builder = append(builder, input.Data...)
+	builder = append(builder, CR, LF)
 	return builder
 }
 
@@ -192,7 +203,7 @@ func (resp *RespParser) getType(char byte) (t RESPType, err error) {
 	case '*':
 		t = Arrays
 	default:
-		err = fmt.Errorf("type not found: %v", char)
+		err = fmt.Errorf("type not found: %c", rune(char))
 	}
 	return t, err
 }
