@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -266,7 +267,7 @@ func xrange(memory *Memory) Executor {
 			Nested: make([]*RESP, 0),
 		}
 		stream := (entry.Value).(StreamEntry)
-		keyRange := QueryStreamKeysByRange(stream, start, end)
+		keyRange := QueryStreamKeysByRange(stream, start, end, true)
 
 		for _, key := range keyRange {
 			// for the item key
@@ -313,11 +314,63 @@ func xread(memory *Memory) Executor {
 			return nil, fmt.Errorf("insufficient arguments for XREAD")
 		}
 
-		streams := make(map[string]string)
-		numStream := int((len(resp.Nested) - 2) / 2)
+		// process options
+		isBlocking, blockingTime := false, 0
+		i := 1
+		for i < len(resp.Nested) {
+			if string(resp.Nested[i].Data) == "streams" {
+				i += 1
+				break
+			}
+			if string(resp.Nested[i].Data) == "block" {
+				isBlocking = true
+				blockingTime, _ = strconv.Atoi(string(resp.Nested[i+1].Data))
+				i += 2
+				continue
+			}
+			i += 1
+		}
 
-		for i := 2; i < len(resp.Nested)-numStream; i++ {
-			streams[string(resp.Nested[i].Data)] = string(resp.Nested[i+numStream].Data)
+		streams := make(map[string]string)
+		numStream := int((len(resp.Nested) - i) / 2)
+
+		for j := i; j < len(resp.Nested)-numStream; j++ {
+			streams[string(resp.Nested[j].Data)] = string(resp.Nested[j+numStream].Data)
+		}
+
+		if isBlocking {
+			if blockingTime > 0 {
+				<-time.After(time.Duration(blockingTime) * time.Millisecond)
+			} else {
+				// block until there is update from the querying streams
+				waitCtx, cancel := context.WithCancel(context.Background())
+				updated, check := make(chan bool, 10), make(chan bool, 10)
+				for streamId := range streams {
+					entry := memory.Get(streamId)
+					stream := (entry.Value).(StreamEntry)
+
+					// for each stream, continuing check if there is any updates
+					go func(ctx context.Context, stream StreamEntry, check chan bool, updated chan bool, oldLen int) {
+						for {
+							select {
+							case <-ctx.Done():
+								return
+							case <-time.After(time.Duration(10) * time.Millisecond):
+								check <- true
+							case <-check:
+								if len(stream) > oldLen {
+									updated <- true
+								}
+							}
+						}
+					}(waitCtx, stream, check, updated, len(stream))
+				}
+
+				// wait until there is any update signal
+				<-updated
+				// cancel all the goroutine
+				cancel()
+			}
 		}
 
 		output := &RESP{
@@ -329,7 +382,7 @@ func xread(memory *Memory) Executor {
 		for streamId, boundId := range streams {
 			entry := memory.Get(streamId)
 			stream := (entry.Value).(StreamEntry)
-			keyRange := QueryStreamKeysByRange(stream, boundId, "+")
+			keyRange := QueryStreamKeysByRange(stream, boundId, "+", false)
 
 			streamItemResp := &RESP{
 				Type:   Arrays,
@@ -383,8 +436,16 @@ func xread(memory *Memory) Executor {
 					streamItemResp,
 				},
 			}
+			if len(streamItemResp.Nested) > 0 {
+				output.Nested = append(output.Nested, streamQueryResp)
+			}
+		}
 
-			output.Nested = append(output.Nested, streamQueryResp)
+		if len(output.Nested) == 0 {
+			return &RESP{
+				Type: BulkString,
+				Data: []byte(""),
+			}, nil
 		}
 
 		return output, nil

@@ -95,7 +95,7 @@ func GenerateNextSeq(streamEntry StreamEntry, id string) string {
 	return fmt.Sprintf("%v-%v", time, seq)
 }
 
-func QueryStreamKeysByRange(streamEntry StreamEntry, start string, end string) []string {
+func QueryStreamKeysByRange(streamEntry StreamEntry, start string, end string, inclusive bool) []string {
 	output := make([]string, 0, len(streamEntry))
 	if start == "-" {
 		start = "0"
@@ -103,11 +103,25 @@ func QueryStreamKeysByRange(streamEntry StreamEntry, start string, end string) [
 	if end == "+" {
 		end = fmt.Sprintf("%v", time.Now().UnixMilli())
 	}
-	for key := range streamEntry {
-		if key >= start && key <= end {
-			output = append(output, key)
+
+	if inclusive {
+		for key := range streamEntry {
+			if key >= start && key <= end {
+				output = append(output, key)
+			}
+		}
+	} else {
+		for key := range streamEntry {
+			if key > start && key < end {
+				output = append(output, key)
+			}
 		}
 	}
 	sort.Strings(output)
+
+	if start == "$" {
+		return []string{output[len(output)-1]}
+	}
+
 	return output
 }
