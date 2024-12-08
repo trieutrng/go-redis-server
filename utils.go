@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func RespTypeString(respType RESPType) string {
@@ -67,11 +68,12 @@ func GenerateNextSeq(streamEntry StreamEntry, id string) string {
 	}
 
 	if id == "*" {
-		if lastTime == "0" && lastSeq == "0" {
-			return "0-1"
+		currentMillis := time.Now().UnixMilli()
+		if lastTime == fmt.Sprintf("%v", currentMillis) {
+			lastSeqInt, _ := strconv.Atoi(lastSeq)
+			return fmt.Sprintf("%v-%v", currentMillis, lastSeqInt+1)
 		}
-		lastSeqInt, _ := strconv.Atoi(lastSeq)
-		return fmt.Sprintf("%v-%v", lastTime, lastSeqInt+1)
+		return fmt.Sprintf("%v-%v", currentMillis, 0)
 	}
 
 	splitted := strings.Split(id, "-")
@@ -91,4 +93,21 @@ func GenerateNextSeq(streamEntry StreamEntry, id string) string {
 		}
 	}
 	return fmt.Sprintf("%v-%v", time, seq)
+}
+
+func QueryStreamKeysByRange(streamEntry StreamEntry, start string, end string) []string {
+	output := make([]string, 0, len(streamEntry))
+	if start == "-" {
+		start = "0"
+	}
+	if end == "+" {
+		end = fmt.Sprintf("%v", time.Now().UnixMilli())
+	}
+	for key := range streamEntry {
+		if key >= start && key <= end {
+			output = append(output, key)
+		}
+	}
+	sort.Strings(output)
+	return output
 }
