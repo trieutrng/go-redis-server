@@ -64,6 +64,7 @@ func initExecutors(memory *Memory) map[string]Executor {
 		"XADD":     xadd(memory),
 		"XRANGE":   xrange(memory),
 		"XREAD":    xread(memory),
+		"INCR":     incr(memory),
 	}
 }
 
@@ -449,5 +450,47 @@ func xread(memory *Memory) Executor {
 		}
 
 		return output, nil
+	}
+}
+
+func incr(memory *Memory) Executor {
+	return func(resp *RESP) (*RESP, error) {
+		if len(resp.Nested) < 2 {
+			return nil, fmt.Errorf("insufficient arguments for INCR")
+		}
+		key := string(resp.Nested[1].Data)
+
+		entry := memory.Get(key)
+		if entry.Type == "none" {
+			newNumStr := strconv.FormatInt(1, 10)
+
+			memory.Put(key,
+				Entry{Type: "string", Value: newNumStr},
+				Option{})
+
+			return &RESP{
+				Type: Integers,
+				Data: []byte(newNumStr),
+			}, nil
+		}
+
+		num, err := strconv.ParseInt((entry.Value).(string), 10, 64)
+		if err != nil {
+			return &RESP{
+				Type: SimpleError,
+				Data: []byte("ERR value is not an integer or out of range"),
+			}, nil
+		}
+
+		newNumStr := strconv.FormatInt(num+1, 10)
+
+		memory.Put(key,
+			Entry{Type: "string", Value: newNumStr},
+			Option{})
+
+		return &RESP{
+			Type: Integers,
+			Data: []byte(newNumStr),
+		}, nil
 	}
 }

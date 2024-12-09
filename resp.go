@@ -15,6 +15,7 @@ const (
 	SimpleString RESPType = '+'
 	BulkString   RESPType = '$'
 	Arrays       RESPType = '*'
+	Integers     RESPType = ':'
 )
 
 type RespParser struct {
@@ -43,6 +44,8 @@ func (resp *RespParser) Serialize(input *RESP) []byte {
 		builder = append(builder, resp.serialize_bulkString(input)...)
 	case Arrays:
 		builder = append(builder, resp.serialize_arrays(input)...)
+	case Integers:
+		builder = append(builder, resp.serialize_integers(input)...)
 	}
 	return builder
 }
@@ -94,6 +97,14 @@ func (resp *RespParser) serialize_arrays(input *RESP) []byte {
 	return builder
 }
 
+func (resp *RespParser) serialize_integers(input *RESP) []byte {
+	builder := make([]byte, 0)
+	builder = append(builder, byte(Integers))
+	builder = append(builder, []byte(input.Data)...)
+	builder = append(builder, CR, LF)
+	return builder
+}
+
 // deserializer
 func (resp *RespParser) Deserialize(input []byte) (*RESP, error) {
 	if len(input) == 0 {
@@ -117,6 +128,11 @@ func (resp *RespParser) Deserialize(input []byte) (*RESP, error) {
 		}
 	case Arrays:
 		value, err = resp.deserialize_arrays(input[1:])
+		if err != nil {
+			return nil, err
+		}
+	case Integers:
+		value, err = resp.deserialize_integers(input[1:])
 		if err != nil {
 			return nil, err
 		}
@@ -190,6 +206,22 @@ func (resp *RespParser) deserialize_arrays(input []byte) (*RESP, error) {
 		Nested: nested,
 		Data:   input[:read],
 		Origin: input[:read],
+	}, nil
+}
+
+func (resp *RespParser) deserialize_integers(input []byte) (*RESP, error) {
+	i := 0
+	for i < len(input)-1 && input[i] != CR && input[i+1] != LF {
+		i++
+	}
+	if input[i] != CR || input[i+1] != LF {
+		return nil, fmt.Errorf("invalid format for string type")
+	}
+	return &RESP{
+		Type:   Integers,
+		Nested: nil,
+		Data:   input[:i],
+		Origin: input[:i],
 	}, nil
 }
 
