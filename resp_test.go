@@ -21,9 +21,19 @@ func TestRespParser_Deserialize(t *testing.T) {
 			expected: BulkString,
 		},
 		{
-			name:     "Deserialize 2",
+			name:     "Deserialize 3",
 			args:     []byte("+PING\r\n"),
 			expected: SimpleString,
+		},
+		{
+			name:     "Deserialize 4",
+			args:     []byte(":51\r\n"),
+			expected: Integers,
+		},
+		{
+			name:     "Deserialize 5",
+			args:     []byte("-ERR value is not an integer or out of range\r\n"),
+			expected: SimpleError,
 		},
 	}
 

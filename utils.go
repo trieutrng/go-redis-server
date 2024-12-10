@@ -10,12 +10,16 @@ import (
 
 func RespTypeString(respType RESPType) string {
 	switch respType {
+	case SimpleError:
+		return "SimpleError"
 	case SimpleString:
 		return "SimpleString"
 	case BulkString:
 		return "BulkString"
 	case Arrays:
 		return "Arrays"
+	case Integers:
+		return "Integers"
 	}
 	return "Not found"
 }

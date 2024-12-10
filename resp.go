@@ -116,6 +116,11 @@ func (resp *RespParser) Deserialize(input []byte) (*RESP, error) {
 	}
 	var value *RESP
 	switch respType {
+	case SimpleError:
+		value, err = resp.deserialize_error(input[1:])
+		if err != nil {
+			return nil, err
+		}
 	case SimpleString:
 		value, err = resp.deserialize_string(input[1:])
 		if err != nil {
@@ -141,6 +146,22 @@ func (resp *RespParser) Deserialize(input []byte) (*RESP, error) {
 	}
 	value.Origin = append(input[:1], value.Origin...)
 	return value, nil
+}
+
+func (resp *RespParser) deserialize_error(input []byte) (*RESP, error) {
+	i := 0
+	for i < len(input)-1 && input[i] != CR && input[i+1] != LF {
+		i++
+	}
+	if input[i] != CR || input[i+1] != LF {
+		return nil, fmt.Errorf("invalid format for string type")
+	}
+	return &RESP{
+		Type:   SimpleError,
+		Nested: nil,
+		Data:   input[:i],
+		Origin: input[:i],
+	}, nil
 }
 
 func (resp *RespParser) deserialize_string(input []byte) (*RESP, error) {
@@ -228,12 +249,16 @@ func (resp *RespParser) deserialize_integers(input []byte) (*RESP, error) {
 // helpers
 func (resp *RespParser) getType(char byte) (t RESPType, err error) {
 	switch rune(char) {
+	case '-':
+		t = SimpleError
 	case '+':
 		t = SimpleString
 	case '$':
 		t = BulkString
 	case '*':
 		t = Arrays
+	case ':':
+		t = Integers
 	default:
 		err = fmt.Errorf("type not found: %c", rune(char))
 	}

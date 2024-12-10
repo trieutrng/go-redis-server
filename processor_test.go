@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestProcessor_Accept(t *testing.T) {
 	testcases := []struct {
@@ -35,11 +38,13 @@ func TestProcessor_Accept(t *testing.T) {
 		},
 	}
 
+	txContext := context.WithValue(context.Background(), "txId", "id")
 	respParser := NewRESP()
 	memory := NewMemory()
-	processor := NewProcessor(respParser, memory)
+	transaction := NewTransaction()
+	processor := NewProcessor(respParser, memory, transaction)
 	for _, tt := range testcases {
-		output, err := processor.Accept([]byte(tt.args))
+		output, err := processor.Accept(txContext, []byte(tt.args))
 		if err != nil {
 			t.Errorf("test: %v - unexpected error: %v", tt.name, err)
 		}
